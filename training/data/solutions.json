@@ -1,0 +1,528 @@
+{
+  "d953c4bf9b8ebdccd4836e20723ee984": {
+    "error_type": "websocket_dead",
+    "variant": "no_heartbeat",
+    "status": 0,
+    "solution": {
+      "action": "reconnect_websocket",
+      "reason": "no_heartbeat"
+    },
+    "success": true,
+    "saved_at": 1775585027.702275,
+    "use_count": 1,
+    "success_rate": 1.0
+  },
+  "1e4f9699e50b490d824e2de7982b38b4": {
+    "error_type": "key_permission",
+    "variant": "read_only",
+    "status": 403,
+    "solution": {
+      "action": "alert_read_only_key",
+      "retry": false
+    },
+    "success": true,
+    "saved_at": 1775585027.703083,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "fbb42fb59f7d8249fbead5e80868f877": {
+    "error_type": "financial_risk",
+    "variant": "low_liquidity",
+    "status": 200,
+    "solution": {
+      "action": "pause_trading",
+      "reason": "low_liquidity",
+      "alert": true
+    },
+    "success": true,
+    "saved_at": 1775585027.6893492,
+    "use_count": 1,
+    "success_rate": 1.0
+  },
+  "abecf8a2c4f865f2faa631cfae7bf33a": {
+    "error_type": "rate_limit",
+    "variant": "429_with_retry",
+    "status": 429,
+    "solution": {
+      "action": "wait_and_retry",
+      "wait_seconds": 60,
+      "use_backup_key": false
+    },
+    "success": false,
+    "saved_at": 1775585027.696123,
+    "use_count": 0,
+    "success_rate": 0.0
+  },
+  "8d1b476d772cf0e4c4d0352ba1e6c10d": {
+    "error_type": "financial_risk",
+    "variant": "latency_spike",
+    "status": 200,
+    "solution": {
+      "action": "pause_trading",
+      "reason": "price_spike",
+      "alert": true
+    },
+    "success": true,
+    "saved_at": 1775585027.690818,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "134514f101726bcd8924f3f639fdd113": {
+    "error_type": "unexpected_error",
+    "variant": "wrong_types",
+    "status": 200,
+    "solution": {
+      "action": "retry_once",
+      "log": true,
+      "alert": true
+    },
+    "success": true,
+    "saved_at": 1775585027.702543,
+    "use_count": 1,
+    "success_rate": 1.0
+  },
+  "55cb39968c180d1b8445dbdd9d891d84": {
+    "error_type": "rate_limit",
+    "variant": "503_overloaded",
+    "status": 503,
+    "solution": {
+      "action": "wait_and_retry",
+      "wait_seconds": 60,
+      "use_backup_key": false
+    },
+    "success": true,
+    "saved_at": 1775585027.6934268,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "c850d0438431590520c47257b33ffd0e": {
+    "error_type": "stale_data",
+    "variant": "missing_timestamp",
+    "status": 200,
+    "solution": {
+      "action": "use_backup_source",
+      "reason": "missing_timestamp",
+      "retry": true
+    },
+    "success": true,
+    "saved_at": 1775585027.7035992,
+    "use_count": 1,
+    "success_rate": 1.0
+  },
+  "b53198feb1fb49ccb040ed20ace46851": {
+    "error_type": "key_permission",
+    "variant": "no_trade_permission",
+    "status": 403,
+    "solution": {
+      "action": "alert_missing_trade_permission",
+      "retry": false
+    },
+    "success": true,
+    "saved_at": 1775585027.6942499,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "be5182374be1a25da3818c152034ae93": {
+    "error_type": "unexpected_error",
+    "variant": "null_values",
+    "status": 200,
+    "solution": {
+      "action": "return_null_safe",
+      "log": true
+    },
+    "success": true,
+    "saved_at": 1775585027.681924,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "e5cf09a95085fecd237f7525b1877263": {
+    "error_type": "price_mismatch",
+    "variant": "outlier_price",
+    "status": 200,
+    "solution": {
+      "action": "exclude_outlier_use_average",
+      "threshold_pct": 3.0
+    },
+    "success": true,
+    "saved_at": 1775585027.70121,
+    "use_count": 1,
+    "success_rate": 1.0
+  },
+  "0725c1b1a8aab1c6afd69de8190c28e0": {
+    "error_type": "json_broken",
+    "variant": "extra_nested",
+    "status": 200,
+    "solution": {
+      "action": "reject_malformed",
+      "log": true,
+      "retry": true
+    },
+    "success": true,
+    "saved_at": 1775585027.7017431,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "e23686132921cf707c0db19f39f310df": {
+    "error_type": "websocket_dead",
+    "variant": "silent_disconnect",
+    "status": 0,
+    "solution": {
+      "action": "reconnect_websocket",
+      "reason": "stale_stream"
+    },
+    "success": false,
+    "saved_at": 1775585027.6837819,
+    "use_count": 0,
+    "success_rate": 0.0
+  },
+  "0a4d7a7a5a24aea20ae8008a73469dc7": {
+    "error_type": "websocket_dead",
+    "variant": "stale_stream",
+    "status": 0,
+    "solution": {
+      "action": "reconnect_websocket",
+      "reason": "stale_stream"
+    },
+    "success": true,
+    "saved_at": 1775585027.704385,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "dc97d60adaf7ea19eaae0bf9d85331a0": {
+    "error_type": "unexpected_error",
+    "variant": "empty_response",
+    "status": 200,
+    "solution": {
+      "action": "retry_once",
+      "log": true,
+      "alert": true
+    },
+    "success": true,
+    "saved_at": 1775585027.693173,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "bbc08c604b801ad9f5eca97c818ac91f": {
+    "error_type": "endpoint_down",
+    "variant": "bad_gateway",
+    "status": 502,
+    "solution": {
+      "action": "switch_to_backup_endpoint",
+      "backup": "mirror_api"
+    },
+    "success": true,
+    "saved_at": 1775585027.679822,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "8ad80fb0371ab29e80c9b6999de2d5c2": {
+    "error_type": "auth_error",
+    "variant": "ip_not_whitelisted",
+    "status": 403,
+    "solution": {
+      "action": "recalculate_signature",
+      "retry": true
+    },
+    "success": true,
+    "saved_at": 1775585027.6982641,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "09533361450a1c479bbded882e00d00a": {
+    "error_type": "price_mismatch",
+    "variant": "high_spread",
+    "status": 200,
+    "solution": {
+      "action": "exclude_outlier_use_average",
+      "threshold_pct": 3.0
+    },
+    "success": true,
+    "saved_at": 1775585027.691604,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "043e198d2a4d20ba3c1534bed6b333cf": {
+    "error_type": "unexpected_error",
+    "variant": "internal_server",
+    "status": 500,
+    "solution": {
+      "action": "reject_invalid_types",
+      "log": true
+    },
+    "success": false,
+    "saved_at": 1775585027.7006762,
+    "use_count": 0,
+    "success_rate": 0.0
+  },
+  "c0e58ef2dade31980321d9eefaf1031d": {
+    "error_type": "key_permission",
+    "variant": "withdrawal_enabled",
+    "status": 403,
+    "solution": {
+      "action": "alert_read_only_key",
+      "retry": false
+    },
+    "success": true,
+    "saved_at": 1775585027.69055,
+    "use_count": 1,
+    "success_rate": 1.0
+  },
+  "04f355f89aba873aa4157c3af2e5f49c": {
+    "error_type": "rate_limit",
+    "variant": "429_ip_ban",
+    "status": 429,
+    "solution": {
+      "action": "wait_and_retry",
+      "wait_seconds": 60,
+      "use_backup_key": false
+    },
+    "success": true,
+    "saved_at": 1775585027.691874,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "f82d948a5cf888aeefb2389d306c6daf": {
+    "error_type": "stale_data",
+    "variant": "old_timestamp",
+    "status": 200,
+    "solution": {
+      "action": "reject_invalid_timestamp",
+      "reason": "wrong format",
+      "retry": true
+    },
+    "success": true,
+    "saved_at": 1775585027.703865,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "8d091442d41abe380b3e92739a16ee30": {
+    "error_type": "unexpected_error",
+    "variant": "server_crash",
+    "status": 500,
+    "solution": {
+      "action": "retry_once",
+      "log": true,
+      "alert": true
+    },
+    "success": true,
+    "saved_at": 1775585027.69028,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "bec9710d8626b7bd60ab6f4516aed132": {
+    "error_type": "endpoint_down",
+    "variant": "dns_failed",
+    "status": 0,
+    "solution": {
+      "action": "switch_to_backup_endpoint",
+      "backup": "regional_endpoint"
+    },
+    "success": true,
+    "saved_at": 1775585027.704127,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "47e018c5b8c3b5fc84a924fd7673f6fa": {
+    "error_type": "auth_error",
+    "variant": "invalid_api_key",
+    "status": 401,
+    "solution": {
+      "action": "switch_to_read_only_mode",
+      "retry": false,
+      "degraded_mode": true
+    },
+    "success": true,
+    "saved_at": 1775585027.6761081,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "6b845d15bb8ca694935f61184c921b16": {
+    "error_type": "stale_data",
+    "variant": "wrong_format_timestamp",
+    "status": 200,
+    "solution": {
+      "action": "use_backup_source",
+      "reason": "missing_timestamp",
+      "retry": true
+    },
+    "success": true,
+    "saved_at": 1775585027.703341,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "3335252db945c5ecca3786d0b76c07b3": {
+    "error_type": "json_broken",
+    "variant": "schema_changed",
+    "status": 200,
+    "solution": {
+      "action": "remap_nested_schema",
+      "mapping": {
+        "ticker.last_price": "price"
+      }
+    },
+    "success": true,
+    "saved_at": 1775585027.7028182,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "52be69b2b6b0b8e5ff1f89bf8f43b890": {
+    "error_type": "rate_limit",
+    "variant": "429_no_retry",
+    "status": 429,
+    "solution": {
+      "action": "wait_and_retry",
+      "wait_seconds": 30,
+      "use_backup_key": false
+    },
+    "success": true,
+    "saved_at": 1775585027.6803432,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "76380695c8297c45a5f21d7be86705a6": {
+    "error_type": "json_broken",
+    "variant": "missing_fields",
+    "status": 200,
+    "solution": {
+      "action": "auto_fix_json_syntax",
+      "retry": true
+    },
+    "success": true,
+    "saved_at": 1775585027.691345,
+    "use_count": 1,
+    "success_rate": 1.0
+  },
+  "b06d9b710cd8385a5fd0f84f070ec494": {
+    "error_type": "financial_risk",
+    "variant": "price_spike",
+    "status": 200,
+    "solution": {
+      "action": "pause_trading",
+      "reason": "low_liquidity",
+      "alert": true
+    },
+    "success": true,
+    "saved_at": 1775585027.695584,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "9800304609612e96096f1bc51e8ee0e2": {
+    "error_type": "auth_error",
+    "variant": "signature_mismatch",
+    "status": 403,
+    "solution": {
+      "action": "alert_key_expired",
+      "retry": false
+    },
+    "success": true,
+    "saved_at": 1775585027.648331,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "59d0030fa8288f485b45453bc1d3b5e9": {
+    "error_type": "endpoint_down",
+    "variant": "connection_refused",
+    "status": 0,
+    "solution": {
+      "action": "route_through_proxy_gateway",
+      "retry": true
+    },
+    "success": false,
+    "saved_at": 1775585027.6974459,
+    "use_count": 0,
+    "success_rate": 0.0
+  },
+  "2ede6cde30047e1f1a97742ee3c34cc9": {
+    "error_type": "auth_error",
+    "variant": "timestamp_out_of_sync",
+    "status": 401,
+    "solution": {
+      "action": "recalculate_signature",
+      "retry": true
+    },
+    "success": true,
+    "saved_at": 1775585027.702017,
+    "use_count": 1,
+    "success_rate": 1.0
+  },
+  "ceacef92297d38bf96360407e372e57f": {
+    "error_type": "endpoint_down",
+    "variant": "full_down",
+    "status": 503,
+    "solution": {
+      "action": "wait_and_retry",
+      "wait_seconds": 10,
+      "max_retries": 3
+    },
+    "success": true,
+    "saved_at": 1775585027.70014,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "75ee0ebef0731b6fe6ce93f90ba3048a": {
+    "error_type": "json_broken",
+    "variant": "array_instead_object",
+    "status": 200,
+    "solution": {
+      "action": "auto_fix_json_syntax",
+      "retry": true
+    },
+    "success": true,
+    "saved_at": 1775585027.704651,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "636c75576720d569145867d3c3a0b5d9": {
+    "error_type": "endpoint_down",
+    "variant": "gateway_timeout",
+    "status": 504,
+    "solution": {
+      "action": "use_cached_response_temporarily",
+      "retry": true
+    },
+    "success": false,
+    "saved_at": 1775585027.7003992,
+    "use_count": 0,
+    "success_rate": 0.0
+  },
+  "7a0b2d9781775c784b717c1a21c29056": {
+    "error_type": "rate_limit",
+    "variant": "429_weight_exceeded",
+    "status": 429,
+    "solution": {
+      "action": "reduce_request_weight",
+      "wait_seconds": 60
+    },
+    "success": true,
+    "saved_at": 1775585027.689611,
+    "use_count": 1,
+    "success_rate": 1.0
+  },
+  "909f1eb770a3cdc2624715b3e6686f74": {
+    "error_type": "json_broken",
+    "variant": "malformed_json",
+    "status": 200,
+    "solution": {
+      "action": "unwrap_nested_response_layers",
+      "retry": true
+    },
+    "success": true,
+    "saved_at": 1775585027.7014751,
+    "use_count": 0,
+    "success_rate": 1.0
+  },
+  "0268dea0fa51177ce1e87594b0b56f73": {
+    "error_type": "auth_error",
+    "variant": "expired_key",
+    "status": 401,
+    "solution": {
+      "action": "route_through_proxy_ip",
+      "retry": true,
+      "degraded_mode": true
+    },
+    "success": true,
+    "saved_at": 1775585027.700952,
+    "use_count": 0,
+    "success_rate": 1.0
+  }
+}

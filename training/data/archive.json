@@ -1,0 +1,139 @@
+{
+  "solutions": {
+    "9ab67c9ab0f5": {
+      "error_type": "stale_data",
+      "action": "use_backup_source",
+      "source": "solution_db",
+      "fix_count": 1,
+      "success_count": 1,
+      "agents": [
+        "test_bot"
+      ],
+      "avg_latency_ms": 0.31,
+      "first_seen": 1775585027.705413,
+      "last_seen": 1775585027.7054138
+    },
+    "f89cea7b7b64": {
+      "error_type": "rate_limit",
+      "action": "reduce_request_weight",
+      "source": "solution_db",
+      "fix_count": 1,
+      "success_count": 1,
+      "agents": [
+        "test_bot"
+      ],
+      "avg_latency_ms": 0.3,
+      "first_seen": 1775585027.7058592,
+      "last_seen": 1775585027.7058601
+    },
+    "881abdac211b": {
+      "error_type": "endpoint_down",
+      "action": "retry_with_timeout",
+      "source": "handler",
+      "fix_count": 1,
+      "success_count": 1,
+      "agents": [
+        "test_bot"
+      ],
+      "avg_latency_ms": 0.17,
+      "first_seen": 1775585027.706131,
+      "last_seen": 1775585027.706132
+    },
+    "cc8a6121ae7f": {
+      "error_type": "unexpected_error",
+      "action": "retry_once",
+      "source": "solution_db",
+      "fix_count": 1,
+      "success_count": 1,
+      "agents": [
+        "test_bot"
+      ],
+      "avg_latency_ms": 0.29,
+      "first_seen": 1775585027.706524,
+      "last_seen": 1775585027.706524
+    },
+    "e33dda66a6ba": {
+      "error_type": "price_mismatch",
+      "action": "exclude_outlier_use_average",
+      "source": "solution_db",
+      "fix_count": 1,
+      "success_count": 1,
+      "agents": [
+        "test_bot"
+      ],
+      "avg_latency_ms": 0.29,
+      "first_seen": 1775585027.706929,
+      "last_seen": 1775585027.706929
+    },
+    "3e40b28f5fac": {
+      "error_type": "json_broken",
+      "action": "auto_fix_json_syntax",
+      "source": "solution_db",
+      "fix_count": 1,
+      "success_count": 1,
+      "agents": [
+        "test_bot"
+      ],
+      "avg_latency_ms": 0.29,
+      "first_seen": 1775585027.707326,
+      "last_seen": 1775585027.707326
+    },
+    "93d3d8ba0487": {
+      "error_type": "auth_error",
+      "action": "recalculate_signature",
+      "source": "solution_db",
+      "fix_count": 1,
+      "success_count": 1,
+      "agents": [
+        "test_bot"
+      ],
+      "avg_latency_ms": 0.29,
+      "first_seen": 1775585027.707726,
+      "last_seen": 1775585027.707726
+    },
+    "99ff4f4f4e69": {
+      "error_type": "financial_risk",
+      "action": "pause_trading",
+      "source": "solution_db",
+      "fix_count": 1,
+      "success_count": 1,
+      "agents": [
+        "test_bot"
+      ],
+      "avg_latency_ms": 0.29,
+      "first_seen": 1775585027.708138,
+      "last_seen": 1775585027.708139
+    },
+    "241b948bbce7": {
+      "error_type": "websocket_dead",
+      "action": "reconnect_websocket",
+      "source": "solution_db",
+      "fix_count": 1,
+      "success_count": 1,
+      "agents": [
+        "test_bot"
+      ],
+      "avg_latency_ms": 0.29,
+      "first_seen": 1775585027.708558,
+      "last_seen": 1775585027.708558
+    },
+    "cbba73c438ec": {
+      "error_type": "key_permission",
+      "action": "alert_read_only_key",
+      "source": "solution_db",
+      "fix_count": 1,
+      "success_count": 1,
+      "agents": [
+        "test_bot"
+      ],
+      "avg_latency_ms": 0.29,
+      "first_seen": 1775585027.708983,
+      "last_seen": 1775585027.7089841
+    }
+  },
+  "stats": {
+    "total_fixes": 10,
+    "total_agents": 0,
+    "total_saved_usd": 0.034
+  }
+}
