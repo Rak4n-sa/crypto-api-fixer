@@ -1,24 +1,24 @@
 """
-MCP Server - Production Ready (FastAPI + Uvicorn)
-يستحمل آلاف الـ requests بالثانية
+MCP Server - SSE Support for Smithery
 """
 
 import os
 import sys
 import time
+import json
 import threading
 import hashlib
+import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "training"))
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 import uvicorn
-import asyncio
 
 from core.detector import detect
 from training.pattern_matcher import match, should_use_agents_loop, get_pricing
@@ -36,245 +36,162 @@ from handlers.risk_guard import handle as h_risk
 from handlers.websocket_monitor import handle as h_ws
 from handlers.key_validator import handle as h_key
 
-# ── Config ────────────────────────────────────────────────────────────────────
-
 WALLET_ADDRESS = os.getenv("WALLET_ADDRESS", "0xD338aF379E4cC2d71EacE60b02804A9D6d2504B3")
 FREE_TIER_LIMIT = 100
-
 _agent_usage: Dict[str, int] = {}
 _usage_lock = threading.Lock()
 
 HANDLERS: Dict[str, Any] = {
-    "stale_data":       h_stale,
-    "rate_limit":       h_rate,
-    "endpoint_down":    h_fallback,
-    "unexpected_error": h_error,
-    "price_mismatch":   h_price,
-    "json_broken":      h_json,
-    "auth_error":       h_auth,
-    "financial_risk":   h_risk,
-    "websocket_dead":   h_ws,
-    "key_permission":   h_key,
+    "stale_data": h_stale, "rate_limit": h_rate,
+    "endpoint_down": h_fallback, "unexpected_error": h_error,
+    "price_mismatch": h_price, "json_broken": h_json,
+    "auth_error": h_auth, "financial_risk": h_risk,
+    "websocket_dead": h_ws, "key_permission": h_key,
 }
 
 MCP_TOOLS = [
     {
         "name": "fix_stale_data",
-        "category": "data_freshness",
-        "description": "Detects and fixes stale API responses. Fetches fresh data from backup. $0.003/request.",
-        "inputSchema": {"type": "object", "properties": {"status": {"type": "integer"}, "data": {"type": "object"}}, "required": ["status"]},
+        "x-smithery-displayName": "Fix Stale Data",
+        "annotations": {"audience": ["assistant"], "priority": 0.8},
+        "description": "Detects and fixes stale/outdated API responses from crypto exchanges. Fetches fresh data from backup sources. Use when price data is older than 5 seconds. Cost: $0.003/request.",
+        "inputSchema": {"type": "object", "properties": {
+            "status": {"type": "integer", "description": "HTTP status code from the exchange API response (e.g. 200, 429, 503)"},
+            "data": {"type": "object", "description": "Raw API response data containing price, timestamp, and other fields"}
+        }, "required": ["status"]}
     },
     {
         "name": "fix_rate_limit",
-        "category": "throttling",
-        "description": "Handles 429/503 rate limit errors. Backoff + proxy rotation. $0.003/request.",
-        "inputSchema": {"type": "object", "properties": {"status": {"type": "integer"}, "headers": {"type": "object"}}, "required": ["status"]},
+        "x-smithery-displayName": "Fix Rate Limit",
+        "annotations": {"audience": ["assistant"], "priority": 0.9},
+        "description": "Handles 429 and 503 rate limit errors. Applies smart backoff and proxy rotation. Use when exchange returns Too Many Requests. Cost: $0.003/request.",
+        "inputSchema": {"type": "object", "properties": {
+            "status": {"type": "integer", "description": "HTTP status code (429 or 503 for rate limits)"},
+            "data": {"type": "object", "description": "Response data including retry-after headers if available"}
+        }, "required": ["status"]}
     },
     {
         "name": "fix_endpoint_down",
-        "category": "availability",
-        "description": "Auto-failover to backup endpoints (502/503/504). $0.003/request.",
-        "inputSchema": {"type": "object", "properties": {"status": {"type": "integer"}}, "required": ["status"]},
+        "x-smithery-displayName": "Fix Endpoint Down",
+        "annotations": {"audience": ["assistant"], "priority": 0.9},
+        "description": "Auto-failover when exchange API is down (502/503/504). Routes to backup mirrors for Binance, Coinbase, Kraken, Bybit, OKX. Cost: $0.003/request.",
+        "inputSchema": {"type": "object", "properties": {
+            "status": {"type": "integer", "description": "HTTP status code (502, 503, or 504 for endpoint failures)"},
+            "data": {"type": "object", "description": "Response data from the failed endpoint"}
+        }, "required": ["status"]}
     },
     {
         "name": "fix_unexpected_error",
-        "category": "error_recovery",
-        "description": "Fixes 500 errors, null values, wrong types. $0.003/request.",
-        "inputSchema": {"type": "object", "properties": {"status": {"type": "integer"}, "data": {"type": "object"}}, "required": ["status"]},
+        "x-smithery-displayName": "Fix Unexpected Error",
+        "annotations": {"audience": ["assistant"], "priority": 0.7},
+        "description": "Fixes unexpected 500 errors, null values, and wrong data types in API responses. Cost: $0.003/request.",
+        "inputSchema": {"type": "object", "properties": {
+            "status": {"type": "integer", "description": "HTTP status code (500 for server errors)"},
+            "data": {"type": "object", "description": "Response data that may contain null values or wrong types"}
+        }, "required": ["status"]}
     },
     {
         "name": "fix_price_mismatch",
-        "category": "price_validation",
-        "description": "Cross-exchange price validation. Removes outliers. $0.007/request.",
-        "inputSchema": {"type": "object", "properties": {"status": {"type": "integer"}, "data": {"type": "object"}}, "required": ["status"]},
+        "x-smithery-displayName": "Fix Price Mismatch",
+        "annotations": {"audience": ["assistant"], "priority": 0.8},
+        "description": "Cross-exchange price validation. Detects outliers over 3% deviation and computes median price. Use when prices differ significantly between exchanges. Cost: $0.007/request.",
+        "inputSchema": {"type": "object", "properties": {
+            "status": {"type": "integer", "description": "HTTP status code from exchange API"},
+            "data": {"type": "object", "description": "Response data containing prices from multiple exchanges"}
+        }, "required": ["status"]}
     },
     {
         "name": "fix_json_broken",
-        "category": "data_repair",
-        "description": "Repairs malformed JSON, schema changes, missing fields. $0.007/request.",
-        "inputSchema": {"type": "object", "properties": {"status": {"type": "integer"}, "data": {"type": "object"}, "raw": {"type": "string"}}, "required": ["status"]},
+        "x-smithery-displayName": "Fix Broken JSON",
+        "annotations": {"audience": ["assistant"], "priority": 0.8},
+        "description": "Repairs malformed JSON, schema changes, and missing required fields. Auto-remaps Binance, Coinbase, Kraken schemas. Cost: $0.007/request.",
+        "inputSchema": {"type": "object", "properties": {
+            "status": {"type": "integer", "description": "HTTP status code from exchange API"},
+            "data": {"type": "object", "description": "Partially parsed response data"},
+            "raw": {"type": "string", "description": "Raw unparsed response string if JSON parsing failed"}
+        }, "required": ["status"]}
     },
     {
         "name": "fix_auth_error",
-        "category": "authentication",
-        "description": "Fixes 401/403 errors. Key rotation + signature fix. $0.007/request.",
-        "inputSchema": {"type": "object", "properties": {"status": {"type": "integer"}, "data": {"type": "object"}}, "required": ["status"]},
+        "x-smithery-displayName": "Fix Auth Error",
+        "annotations": {"audience": ["assistant"], "priority": 0.9},
+        "description": "Fixes 401/403 authentication errors. Rotates API keys, recalculates HMAC signatures, syncs timestamps. Cost: $0.007/request.",
+        "inputSchema": {"type": "object", "properties": {
+            "status": {"type": "integer", "description": "HTTP status code (401 for unauthorized, 403 for forbidden)"},
+            "data": {"type": "object", "description": "Exchange error response with message about auth failure"}
+        }, "required": ["status"]}
     },
     {
         "name": "fix_financial_risk",
-        "category": "risk_management",
-        "description": "Circuit breaker for price spikes + low liquidity. $0.007/request.",
-        "inputSchema": {"type": "object", "properties": {"status": {"type": "integer"}, "data": {"type": "object"}}, "required": ["status"]},
+        "x-smithery-displayName": "Fix Financial Risk",
+        "annotations": {"audience": ["assistant"], "priority": 1.0},
+        "description": "Real-time circuit breaker for price spikes over 3%, low liquidity, or API latency over 500ms. Pauses trading to prevent losses. Cost: $0.007/request.",
+        "inputSchema": {"type": "object", "properties": {
+            "status": {"type": "integer", "description": "HTTP status code from exchange API"},
+            "data": {"type": "object", "description": "Market data including change_pct, order_book_depth, and latency_ms"}
+        }, "required": ["status"]}
     },
     {
         "name": "fix_websocket_dead",
-        "category": "connectivity",
-        "description": "Reconnects dead WebSocket streams silently. $0.003/request.",
-        "inputSchema": {"type": "object", "properties": {"status": {"type": "integer"}, "data": {"type": "object"}}, "required": ["status"]},
+        "x-smithery-displayName": "Fix Dead WebSocket",
+        "annotations": {"audience": ["assistant"], "priority": 0.8},
+        "description": "Detects silent WebSocket disconnections and reconnects automatically. Use when no data received for over 30 seconds. Cost: $0.003/request.",
+        "inputSchema": {"type": "object", "properties": {
+            "status": {"type": "integer", "description": "HTTP status code or 0 for WebSocket connections"},
+            "data": {"type": "object", "description": "Connection data including connected status and last_message_ago_seconds"}
+        }, "required": ["status"]}
     },
     {
         "name": "fix_key_permission",
-        "category": "security",
-        "description": "Validates API key permissions. Alerts on withdrawal risk. $0.003/request.",
-        "inputSchema": {"type": "object", "properties": {"status": {"type": "integer"}, "data": {"type": "object"}}, "required": ["status"]},
+        "x-smithery-displayName": "Fix Key Permission",
+        "annotations": {"audience": ["assistant"], "priority": 0.9},
+        "description": "Validates API key permissions. Alerts on dangerous withdrawal permissions and switches to safe trading mode. Cost: $0.003/request.",
+        "inputSchema": {"type": "object", "properties": {
+            "status": {"type": "integer", "description": "HTTP status code (403 for permission errors)"},
+            "data": {"type": "object", "description": "Exchange error response with permission details"}
+        }, "required": ["status"]}
+    },
+    {
+        "name": "auto_fix",
+        "x-smithery-displayName": "Auto Fix",
+        "annotations": {"audience": ["assistant"], "priority": 0.7},
+        "description": "Auto-detects and fixes any crypto exchange API error. Use this when you are unsure of the error type. Handles all 10 error categories automatically.",
+        "inputSchema": {"type": "object", "properties": {
+            "status": {"type": "integer", "description": "HTTP status code from the exchange API response"},
+            "data": {"type": "object", "description": "Raw API response data"},
+            "headers": {"type": "object", "description": "Response headers from the exchange API"},
+            "raw": {"type": "string", "description": "Raw unparsed response string if available"}
+        }, "required": ["status"]}
     },
 ]
 
-# ── FastAPI App ───────────────────────────────────────────────────────────────
-
 app = FastAPI(title="Crypto API Fixer", version="1.0.0")
 
-
-def _get_agent_id(request: Request) -> str:
-    raw = request.headers.get("X-Agent-ID") or request.headers.get("User-Agent", "unknown")
-    return hashlib.sha256(str(raw).encode()).hexdigest()[:12]
-
-
-def _check_payment(agent_id: str, price: float, request: Request) -> Dict[str, Any]:
-    """
-    يتحقق من الدفع:
-    ١. free tier أول 100 request
-    ٢. بعدها يتحقق من X-Payment header
-    """
-    with _usage_lock:
-        usage = _agent_usage.get(agent_id, 0)
-        if usage < FREE_TIER_LIMIT:
-            _agent_usage[agent_id] = usage + 1
-            return {
-                "allowed": True,
-                "source": "free_tier",
-                "remaining": FREE_TIER_LIMIT - usage - 1
-            }
-
-    # قراءة الـ payment token من الـ headers
-    payment_token = (
-        request.headers.get("X-Payment", "") or
-        request.headers.get("Authorization", "").replace("Bearer ", "")
-    )
-
-    if payment_token and len(payment_token) >= 10:
-        with _usage_lock:
-            _agent_usage[agent_id] = _agent_usage.get(agent_id, 0) + 1
-        logger.info("PAYMENT | agent={} amount=${}".format(agent_id, price))
-        return {"allowed": True, "source": "paid"}
-
-    return {
-        "allowed": False,
-        "amount_usdc": price,
-        "wallet": WALLET_ADDRESS,
-        "network": "base",
-        "currency": "USDC",
-        "instructions": "Send {} USDC to {} on Base. Include tx hash in X-Payment header.".format(
-            price, WALLET_ADDRESS)
-    }
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400,
+)
 
 
-def _build_agent_message(error_type: str, result: Dict[str, Any]) -> str:
-    if not result.get("fixed"):
-        messages = {
-            "auth_error": "Auth fix failed — rotate key manually.",
-            "json_broken": "JSON repair failed — use fix_json_broken with raw field.",
-            "financial_risk": "Financial risk detected — trading paused.",
-            "price_mismatch": "Price spread too high — wait 30s and retry.",
-        }
-        return messages.get(error_type, "Fix failed for {}".format(error_type))
-    return "Fixed: {}".format(result.get("action", "unknown"))
-
-
-# ── Routes ────────────────────────────────────────────────────────────────────
-
-@app.get("/health")
-async def health():
-    return {"status": "ok", "version": "1.0.0", "tools": len(MCP_TOOLS)}
-
-
-@app.get("/mcp")
-async def mcp_discovery():
-    return {
-        "protocol": "mcp",
-        "version": "1.0",
-        "name": "crypto-api-fixer",
-        "tools": MCP_TOOLS,
-        "pricing": {
-            "simple_fix": "$0.003/request",
-            "complex_fix": "$0.007/request",
-            "free_tier": "100 requests/agent",
-        },
-    }
-
-
-@app.get("/.well-known/agent-card.json")
-async def agent_card():
-    return {
-        "name": "Crypto API Fixer",
-        "version": "1.0.0",
-        "capabilities": ["api_repair", "price_validation", "risk_guard", "auth_fix"],
-        "endpoint": "/fix",
-        "payment": {"protocol": "x402", "currency": "USDC", "network": "base"},
-    }
-
-
-@app.get("/openapi-spec.json")
-async def openapi_spec():
-    return {
-        "openapi": "3.0.0",
-        "info": {"title": "Crypto API Fixer", "version": "1.0.0"},
-        "paths": {
-            "/fix": {"post": {"summary": "Fix broken crypto API response"}},
-            "/health": {"get": {"summary": "Health check"}},
-        },
-    }
-
-
-@app.post("/fix")
-async def fix_endpoint(request: Request):
+async def _process_fix(body: Dict[str, Any], agent_id: str = "unknown") -> Dict[str, Any]:
     start = time.time()
-    agent_id = _get_agent_id(request)
-
-    # parse body
     try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse(
-            {"status": "error", "message": "invalid JSON"},
-            status_code=400
-        )
-
-    try:
-        # detect
         detection = await asyncio.to_thread(detect, body)
         error_type = detection.get("error_type", "none")
-
         if error_type == "none":
-            return {"status": "ok", "message": "no error detected",
-                    "latency_ms": round((time.time() - start) * 1000, 2)}
-
-        # pricing
+            return {"status": "ok", "message": "no error detected", "latency_ms": round((time.time()-start)*1000, 2)}
         pattern = await asyncio.to_thread(match, detection)
         price = get_pricing(pattern)
-
-        # x402 payment check
-        payment = _check_payment(agent_id, price, request)
-        if not payment.get("allowed"):
-            return JSONResponse(
-                {"status": "payment_required", "x402": payment,
-                 "latency_ms": round((time.time() - start) * 1000, 2)},
-                status_code=402
-            )
-
-        # solution DB hit
         if pattern and not should_use_agents_loop(pattern):
-            latency = round((time.time() - start) * 1000, 2)
-            return {
-                "status": "fixed", "source": "solution_db",
-                "error_type": error_type,
-                "solution": pattern.get("solution", {}),
-                "trading_safe": True,
-                "price_usd": price,
-                "latency_ms": latency
-            }
-
-        # run handler in thread pool (sync handlers)
+            return {"status": "fixed", "source": "solution_db", "error_type": error_type,
+                    "solution": pattern.get("solution", {}), "trading_safe": True,
+                    "price_usd": price, "latency_ms": round((time.time()-start)*1000, 2)}
         handler = HANDLERS.get(error_type)
         if handler:
             result = await asyncio.to_thread(handler, detection, body)
@@ -282,37 +199,134 @@ async def fix_endpoint(request: Request):
         else:
             result = await asyncio.to_thread(run_agents_loop, detection, body)
             source = result.get("source", "agents_loop")
-
-        latency = round((time.time() - start) * 1000, 2)
-        log_fix(error_type, str(result.get("action")), source, price, latency, agent_id)
-
-        return {
-            "status": "fixed" if result.get("fixed") else "escalated",
-            "source": source,
-            "error_type": error_type,
-            "severity": detection.get("severity"),
-            "financial_risk": detection.get("financial_risk"),
-            "solution": result,
-            "agent_message": _build_agent_message(error_type, result),
-            "trading_safe": not detection.get("financial_risk", False),
-            "price_usd": price,
-            "latency_ms": latency,
-        }
-
+        latency = round((time.time()-start)*1000, 2)
+        return {"status": "fixed" if result.get("fixed") else "escalated", "source": source,
+                "error_type": error_type, "solution": result, "price_usd": price, "latency_ms": latency}
     except Exception as e:
-        logger.exception("ERROR | agent={} | {}".format(agent_id, str(e)))
-        return JSONResponse(
-            {"status": "error", "message": str(e),
-             "latency_ms": round((time.time() - start) * 1000, 2)},
-            status_code=500
+        return {"status": "error", "message": str(e), "latency_ms": round((time.time()-start)*1000, 2)}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "version": "1.0.0", "tools": len(MCP_TOOLS)}
+
+
+@app.get("/.well-known/mcp/server-card.json")
+async def mcp_server_card():
+    return {
+        "schema_version": "v1",
+        "name": "crypto-api-fixer",
+        "displayName": "Crypto API Fixer",
+        "version": "1.0.0",
+        "description": "Auto-repair middleware for crypto trading bots. Automatically detects and fixes 10 types of exchange API errors in under 2ms.",
+        "transport": {
+            "type": "streamable-http",
+            "url": "https://crypto-api-fixer.fly.dev/mcp"
+        },
+        "capabilities": {"tools": True},
+        "tools": MCP_TOOLS
+    }
+
+
+@app.get("/.well-known/agent-card.json")
+async def agent_card():
+    return {"name": "Crypto API Fixer", "version": "1.0.0",
+            "capabilities": ["api_repair", "price_validation", "risk_guard", "auth_fix"],
+            "endpoint": "/fix", "payment": {"protocol": "x402", "currency": "USDC", "network": "base"}}
+
+
+@app.post("/fix")
+async def fix_endpoint(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"status": "error", "message": "invalid JSON"}, status_code=400)
+    agent_id = hashlib.sha256(str(request.headers.get("User-Agent", "unknown")).encode()).hexdigest()[:12]
+    result = await _process_fix(body, agent_id)
+    return result
+
+
+# ── MCP SSE Protocol ──────────────────────────────────────────────────────────
+
+@app.api_route("/mcp", methods=["GET", "POST", "OPTIONS"])
+async def mcp_endpoint(request: Request):
+    """Combined SSE + JSON-RPC endpoint for Smithery"""
+
+    if request.method == "OPTIONS":
+        from fastapi.responses import Response
+        return Response(
+            status_code=204,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Max-Age": "86400",
+            }
         )
+
+    if request.method == "GET":
+        async def sse_stream():
+            yield "event: message\n"
+            yield "data: {\"status\":\"ok\"}\n\n"
+            while True:
+                if await request.is_disconnected():
+                    break
+                await asyncio.sleep(15)
+                yield "event: keepalive\n"
+                yield "data: {\"status\":\"ok\"}\n\n"
+
+        return StreamingResponse(
+            sse_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+                "X-Accel-Buffering": "no",
+            }
+        )
+
+    # POST - JSON-RPC
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}})
+
+    method = body.get("method", "")
+    req_id = body.get("id")
+
+    if method == "initialize":
+        return JSONResponse({"jsonrpc": "2.0", "id": req_id, "result": {
+            "protocolVersion": "2025-11-25",
+            "serverInfo": {"name": "crypto-api-fixer", "version": "1.0.0"},
+            "capabilities": {"tools": {}}
+        }})
+
+    elif method == "tools/list":
+        return JSONResponse({"jsonrpc": "2.0", "id": req_id, "result": {"tools": MCP_TOOLS}})
+
+    elif method == "tools/call":
+        tool_name = body.get("params", {}).get("name", "")
+        args = body.get("params", {}).get("arguments", {})
+        error_map = {
+            "fix_stale_data": "stale_data", "fix_rate_limit": "rate_limit",
+            "fix_endpoint_down": "endpoint_down", "fix_unexpected_error": "unexpected_error",
+            "fix_price_mismatch": "price_mismatch", "fix_json_broken": "json_broken",
+            "fix_auth_error": "auth_error", "fix_financial_risk": "financial_risk",
+            "fix_websocket_dead": "websocket_dead", "fix_key_permission": "key_permission",
+        }
+        if tool_name in error_map:
+            args["error_type"] = error_map[tool_name]
+        result = await _process_fix(args)
+        return JSONResponse({"jsonrpc": "2.0", "id": req_id, "result": {
+            "content": [{"type": "text", "text": json.dumps(result)}]
+        }})
+
+    return JSONResponse({"jsonrpc": "2.0", "id": req_id, "result": {}})
+
+
+
 
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "server:app",
-        host="0.0.0.0",
-        port=8080,
-        workers=1,  # single worker — scale via fly.io machines
-        reload=False
-    )
+    uvicorn.run("server:app", host="0.0.0.0", port=8080, workers=1, reload=False)
