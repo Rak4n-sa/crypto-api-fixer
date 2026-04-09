@@ -87,8 +87,9 @@ def _check_stale(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     now = time.time()
     if not isinstance(data, dict):
         return None
-    if "timestamp" not in data and "price" in data:
-        return {"variant": "missing_timestamp", "age_seconds": None}
+    # إذا مافي timestamp أصلاً — مو stale
+    if "timestamp" not in data:
+        return None
     ts = data.get("timestamp")
     if ts is None:
         return None
@@ -116,19 +117,37 @@ def _check_price_mismatch(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _to_float(value: Any) -> Optional[float]:
+    """يحوّل أي قيمة لـ float إذا ممكن — يقبل string أو number"""
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
 def _check_json(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not isinstance(data, dict):
         return {"variant": "invalid_format"}
     if not data:
         return {"variant": "empty_response"}
-    if "price" not in data and "prices" not in data and "ticker" not in data:
-        if "symbol" in data:
-            return {"variant": "missing_fields", "missing": ["price"]}
-    if any(v is None for v in data.values()):
-        return {"variant": "null_values"}
-    price = data.get("price")
-    if price is not None and not isinstance(price, (int, float)):
-        return {"variant": "wrong_types", "field": "price", "value": price}
+
+    # فحص price — نقبل string رقمي أو number (Binance يرسل string)
+    price_raw = data.get("price")
+    if price_raw is not None:
+        price = _to_float(price_raw)
+        if price is None:
+            return {"variant": "wrong_types", "field": "price", "value": price_raw}
+
+    # فحص null values — بس على الحقول المهمة فقط
+    important_fields = ["price", "volume", "timestamp"]
+    for field in important_fields:
+        if field in data and data[field] is None:
+            return {"variant": "null_values", "field": field}
+
     return None
 
 
