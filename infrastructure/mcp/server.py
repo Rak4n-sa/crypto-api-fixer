@@ -1,5 +1,5 @@
 """
-MCP Server - SSE Support for Smithery
+MCP Server - SSE Support for Smithery + Chat Protocol for Agentverse
 """
 
 import os
@@ -246,6 +246,62 @@ async def fix_endpoint(request: Request):
     return result
 
 
+# ── Chat Protocol for Agentverse/ASI:One ─────────────────────────────────────
+
+@app.post("/chat")
+async def chat_endpoint(request: Request):
+    """Chat Protocol for Agentverse/ASI:One discovery"""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"status": "error", "message": "invalid JSON"}, status_code=400)
+
+    message = ""
+    if isinstance(body.get("content"), list):
+        for item in body["content"]:
+            if item.get("type") == "text":
+                message = item.get("text", "").lower()
+                break
+    elif isinstance(body.get("content"), str):
+        message = body["content"].lower()
+
+    if any(w in message for w in ["rate limit", "429", "503", "too many"]):
+        reply = "Rate limit detected. I apply smart backoff + retry with exponential delay. Send the full API response to POST /fix for automatic repair in under 2ms."
+    elif any(w in message for w in ["stale", "old data", "timestamp", "outdated"]):
+        reply = "Stale data detected. I fetch fresh data from backup sources automatically. Send the API response to POST /fix for repair."
+    elif any(w in message for w in ["auth", "401", "403", "api key", "signature", "unauthorized"]):
+        reply = "Auth error detected. I handle key rotation and signature repair. Send the API response to POST /fix for automatic repair."
+    elif any(w in message for w in ["down", "502", "504", "endpoint", "gateway", "timeout"]):
+        reply = "Endpoint down. I auto-failover to backup mirrors for Binance, Coinbase, Kraken, Bybit, OKX. Send the response to POST /fix."
+    elif any(w in message for w in ["price", "mismatch", "spread", "deviation"]):
+        reply = "Price mismatch detected. I compute cross-exchange median to get the correct price. Send the response to POST /fix."
+    elif any(w in message for w in ["json", "broken", "parse", "malformed", "schema"]):
+        reply = "Broken JSON detected. I repair schemas and remap Binance/Coinbase/Kraken formats. Send the response to POST /fix."
+    elif any(w in message for w in ["websocket", "ws", "disconnect", "reconnect"]):
+        reply = "WebSocket dead. I silently reconnect with state recovery. Send the connection data to POST /fix."
+    elif any(w in message for w in ["risk", "spike", "liquidity", "circuit"]):
+        reply = "Financial risk detected. I activate the circuit breaker for price spikes over 3% or low liquidity. Send data to POST /fix."
+    elif any(w in message for w in ["permission", "withdrawal", "read only"]):
+        reply = "Key permission issue. I switch to safe degraded mode and alert on dangerous permissions. Send data to POST /fix."
+    elif any(w in message for w in ["500", "internal server", "unexpected"]):
+        reply = "Unexpected 500 error. I clean the response and apply smart retry logic. Send to POST /fix."
+    else:
+        reply = (
+            "I am Crypto API Fixer — auto-repair middleware for trading bots. "
+            "I fix 10 API error types in under 2ms: rate limits (429/503), stale data, "
+            "auth errors (401/403), endpoint down (502/504), price mismatch, broken JSON, "
+            "WebSocket disconnects, key permission issues, financial risk, and unexpected 500 errors. "
+            "Works with Binance, Coinbase, Kraken, Bybit, OKX. "
+            "Send your API error to POST /fix for automatic repair. "
+            "First 100 requests free. Paid via x402 on Base (USDC)."
+        )
+
+    return JSONResponse({
+        "content": [{"type": "text", "text": reply}],
+        "role": "assistant"
+    })
+
+
 # ── MCP SSE Protocol ──────────────────────────────────────────────────────────
 
 @app.api_route("/mcp", methods=["GET", "POST", "OPTIONS"])
@@ -286,7 +342,6 @@ async def mcp_endpoint(request: Request):
             }
         )
 
-    # POST - JSON-RPC
     try:
         body = await request.json()
     except Exception:
@@ -323,9 +378,6 @@ async def mcp_endpoint(request: Request):
         }})
 
     return JSONResponse({"jsonrpc": "2.0", "id": req_id, "result": {}})
-
-
-
 
 
 if __name__ == "__main__":
