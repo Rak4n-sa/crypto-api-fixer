@@ -1,6 +1,6 @@
 """
 Main Entry Point
-يشغّل الأداة كاملة — يربط كل شيء
+Runs the full tool — connects everything
 """
 
 import sys
@@ -8,6 +8,7 @@ import os
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'training'))
 
+import signal
 import time
 from typing import Any, Dict
 
@@ -43,16 +44,43 @@ HANDLERS: Dict[str, Any] = {
     "key_permission":   h_key,
 }
 
+# Maximum time (seconds) for the agents loop before timeout
+AGENTS_LOOP_TIMEOUT = 30
+
+
+class AgentsLoopTimeout(Exception):
+    pass
+
+
+def _timeout_handler(signum, frame):
+    raise AgentsLoopTimeout("Agents loop exceeded timeout")
+
+
+def _validate_input(api_response: Any) -> bool:
+    """Validate that api_response is a dict with minimum required fields."""
+    if not isinstance(api_response, dict):
+        return False
+    return True
+
 
 def fix(api_response: Dict[str, Any], agent_id: str = "unknown") -> Dict[str, Any]:
     """
-    الدالة الرئيسية
-    تستقبل أي API response وترجع الحل
+    Main fix function.
+    Receives any API response and returns the solution.
     """
     start = time.time()
 
     try:
-        # ١. اكتشاف المشكلة
+        # Input validation
+        if not _validate_input(api_response):
+            return {
+                "fixed": False,
+                "status": "error",
+                "message": "Invalid input: api_response must be a dict",
+                "latency_ms": round((time.time() - start) * 1000, 2),
+            }
+
+        # 1. Detect the problem
         detection = detect(api_response)
         error_type = detection.get("error_type", "none")
 
@@ -64,11 +92,11 @@ def fix(api_response: Dict[str, Any], agent_id: str = "unknown") -> Dict[str, An
                 "latency_ms": round((time.time() - start) * 1000, 2),
             }
 
-        # ٢. تحديد السعر
+        # 2. Determine pricing
         pattern = match(detection)
         price = get_pricing(pattern)
 
-        # ٣. فحص الدفع
+        # 3. Check payment
         payment = payment_middleware(agent_id, price)
         if not payment.get("allowed", False):
             return {
@@ -78,11 +106,11 @@ def fix(api_response: Dict[str, Any], agent_id: str = "unknown") -> Dict[str, An
                 "latency_ms": round((time.time() - start) * 1000, 2),
             }
 
-        # ٤. solution DB أولاً
+        # 4. Solution DB first (cached fix)
         if pattern and not should_use_agents_loop(pattern):
             latency = round((time.time() - start) * 1000, 2)
             log_fix(error_type, str(pattern["solution"].get("action")), "solution_db", price, latency, agent_id)
-            record_fix(agent_id, error_type, str(pattern["solution"].get("action")), "solution_db", price, latency)
+            record_fix(agent_id, error_type, str(pattern["solution"].get("action")), "solution_db", price, latency, True)
             return {
                 "fixed": True,
                 "status": "fixed",
@@ -93,14 +121,34 @@ def fix(api_response: Dict[str, Any], agent_id: str = "unknown") -> Dict[str, An
                 "latency_ms": latency,
             }
 
-        # ٥. handler أو agents loop
+        # 5. Handler or agents loop
         handler = HANDLERS.get(error_type)
         if handler:
             result = handler(detection, api_response)
             source = "handler"
         else:
-            result = run_agents_loop(detection, api_response)
-            source = result.get("source", "agents_loop")
+            # Run agents loop with timeout protection
+            try:
+                if hasattr(signal, 'SIGALRM'):
+                    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+                    signal.alarm(AGENTS_LOOP_TIMEOUT)
+
+                result = run_agents_loop(detection, api_response)
+                source = result.get("source", "agents_loop")
+
+                if hasattr(signal, 'SIGALRM'):
+                    signal.alarm(0)
+                    signal.signal(signal.SIGALRM, old_handler)
+            except AgentsLoopTimeout:
+                log_error("Agents loop timed out after {}s for error_type={}".format(
+                    AGENTS_LOOP_TIMEOUT, error_type))
+                return {
+                    "fixed": False,
+                    "status": "timeout",
+                    "error_type": error_type,
+                    "message": "Agents loop timed out after {}s".format(AGENTS_LOOP_TIMEOUT),
+                    "latency_ms": round((time.time() - start) * 1000, 2),
+                }
 
         latency = round((time.time() - start) * 1000, 2)
         log_fix(error_type, str(result.get("action")), source, price, latency, agent_id)
@@ -130,7 +178,7 @@ def fix(api_response: Dict[str, Any], agent_id: str = "unknown") -> Dict[str, An
 
 
 def run_server(host: str = "0.0.0.0", port: int = 8080) -> None:
-    """يشغّل الـ MCP HTTP server"""
+    """Start the MCP HTTP server"""
     from http.server import HTTPServer
     from infrastructure.mcp.server import MCPHandler
 
@@ -150,11 +198,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.mode == "train":
-        print("🎓 Training mode\n")
+        print("Training mode\n")
         run_training(count=args.samples, reset_db=True, verbose=True)
 
     elif args.mode == "server":
-        print("🚀 Server mode\n")
+        print("Server mode\n")
         run_training(count=500, reset_db=False, verbose=False)
         reset_circuit_breaker()
         run_server(port=args.port)
@@ -166,16 +214,16 @@ if __name__ == "__main__":
         run_training(count=500, reset_db=True, verbose=False)
         reset_circuit_breaker()
 
-        print("🧪 Test mode\n")
+        print("Test mode\n")
         print("=" * 65)
 
         fixed = 0
         for error_type in ERROR_TYPES:
             error = generate_one(error_type)
             result = fix(error, agent_id="test_bot")
-            icon = "✅" if result.get("fixed") else "❌"
+            status = "OK" if result.get("fixed") else "FAIL"
             print("{} {:<25} status={:<10} source={:<15} {}ms".format(
-                icon, error_type,
+                status, error_type,
                 result.get("status", "?"),
                 result.get("source", "?"),
                 result.get("latency_ms", 0)))
@@ -183,5 +231,5 @@ if __name__ == "__main__":
                 fixed += 1
 
         print("\n" + "=" * 65)
-        print("📊 Fixed: {}/{}".format(fixed, len(ERROR_TYPES)))
-        print("💰 Revenue stats:", get_revenue_stats())
+        print("Fixed: {}/{}".format(fixed, len(ERROR_TYPES)))
+        print("Revenue stats:", get_revenue_stats())

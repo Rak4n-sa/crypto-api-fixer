@@ -27,7 +27,7 @@ You sleep. Your bot freezes. You lose money.
 ## Quick Start (for Humans)
 
 ```bash
-git clone https://github.com/yourusername/crypto-api-fixer.git
+git clone https://github.com/goldsavant/crypto-api-fixer.git
 cd crypto-api-fixer
 pip install -r requirements.txt
 

@@ -36,7 +36,7 @@ from handlers.risk_guard import handle as h_risk
 from handlers.websocket_monitor import handle as h_ws
 from handlers.key_validator import handle as h_key
 
-WALLET_ADDRESS = os.getenv("WALLET_ADDRESS", "0xD338aF379E4cC2d71EacE60b02804A9D6d2504B3")
+WALLET_ADDRESS = os.getenv("WALLET_ADDRESS", "")
 FREE_TIER_LIMIT = 100
 _agent_usage: Dict[str, int] = {}
 _usage_lock = threading.Lock()
